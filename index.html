@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="Prototyp einer webbasierten SEM-Kreisannotation für ein wissenschaftliches Forschungsprojekt." />
+  <title>SEM Circle Study · Annotationsprototyp</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script defer src="calibration_truth.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">◉</span><div><strong>SEM Circle Study</strong><small>Forschungsprototyp · v0.1</small></div></div>
+    <div class="top-actions"><span class="tag" id="storageState">Nur lokal gespeichert</span><button class="btn ghost" id="exportAll" title="Alle bisherigen Annotationen herunterladen">Alle Daten exportieren ↓</button></div>
+  </header>
+  <main class="layout">
+    <section class="intro" id="introPanel">
+      <div class="eyebrow">WILLKOMMEN ZUR TESTVERSION</div>
+      <h1>Wie genau lassen sich Staubpartikel von Hand vermessen?</h1>
+      <p>Zeichne Kreise über die sichtbaren Kugeln. Nach drei Testbildern kannst du beliebig viele weitere Bildausschnitte annotieren. Die Kreismittelpunkte und Radien werden in Originalbildpixeln gespeichert.</p>
+      <div class="intro-grid">
+        <article><span class="step-num">01</span><h3>Einfach</h3><p>Isolierte Kugeln. Lerne die Steuerung kennen.</p></article>
+        <article><span class="step-num">02</span><h3>Mittel</h3><p>Mehr Partikel und erste Überlappungen.</p></article>
+        <article><span class="step-num">03</span><h3>Schwer</h3><p>Stärkere Überlappungen und Bildrauschen.</p></article>
+      </div>
+      <div class="notice"><strong>Hinweis:</strong> Dies ist ein lokaler Demonstrator. Es werden <strong>keine Daten an einen Server übertragen</strong>. Deine Arbeit wird nur in diesem Browser zwischengespeichert und kann als JSON exportiert werden. Die gezeigten Bilder sind synthetisch.</div>
+      <div class="intro-footer"><button class="btn primary big" id="startBtn">Drei Testbilder beginnen →</button><span class="muted" id="participantLabel"></span></div>
+    </section>
+
+    <section class="workspace hidden" id="workPanel">
+      <div class="work-header">
+        <div><div class="eyebrow" id="stepEyebrow">KALIBRIERUNG 1 / 3</div><h1 id="imageHeading">Testbild 1 · Einfach</h1><p id="imageDescription" class="muted">Zeichne einen Kreis um jede sichtbare Kugel.</p></div>
+        <div class="progress"><div class="progress-track"><span id="progressFill"></span></div><span id="progressText">1 / 3</span></div>
+      </div>
+      <div class="work-grid">
+        <div class="canvas-column">
+          <div class="toolbar">
+            <span class="dot"></span><span id="imageMeta">Lade Bild …</span>
+            <span class="flex-spacer"></span>
+            <button class="tool" id="zoomOut" title="Verkleinern">−</button><span id="zoomDisplay">100 %</span><button class="tool" id="zoomIn" title="Vergrößern">+</button><button class="tool fit" id="zoomReset">Ansicht zurücksetzen</button>
+          </div>
+          <div class="canvas-wrap"><canvas id="annotator" width="640" height="640" aria-label="SEM-Bild zur Kreisannotation"></canvas><div class="canvas-loading hidden" id="imageLoading">Bild wird geladen …</div></div>
+          <div class="bottom-actions"><div class="circle-count"><span class="circle-count-num" id="circleCount">0</span><span>eingezeichnete Kreise</span></div><button class="btn ghost" id="undoBtn">↶ Rückgängig</button><button class="btn ghost" id="deleteBtn">Auswahl löschen</button><button class="btn primary" id="nextBtn">Test abschließen →</button></div>
+        </div>
+        <aside class="sidebar">
+          <div class="side-card"><h2>Zeichenhilfe</h2><dl class="help"><dt>Neue Kugel</dt><dd>Linke Maustaste: Mittelpunkt setzen und nach außen ziehen</dd><dt>Auswählen / bewegen</dt><dd>Kreismitte anklicken und ziehen</dd><dt>Radius ändern</dt><dd>Mausrad oder Kreisrand ziehen</dd><dt>Feinjustierung</dt><dd><kbd>Shift</kbd> + Mausrad / Pfeiltasten: 0,1 px</dd><dt>Mittelpunkt</dt><dd><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd>: 1 px</dd><dt>Zoom</dt><dd><kbd>+</kbd> / <kbd>−</kbd> oder Buttons oberhalb des Bilds</dd><dt>Bild verschieben</dt><dd><kbd>Alt</kbd> + Ziehen oder rechte Maustaste</dd><dt>Entfernen</dt><dd><kbd>Entf</kbd> · <kbd>Strg</kbd> + <kbd>Z</kbd> rückgängig</dd></dl></div>
+          <div class="side-card selected" id="selectionPanel"><h2>Ausgewählter Kreis</h2><p class="muted" id="selectionEmpty">Klicke einen Kreis an, um Mittelpunkt und Radius zu sehen.</p><div class="measurement hidden" id="selectionValues"><div><span>ID</span><b id="measureID">—</b></div><div><span>x / y</span><b id="measureCenter">—</b></div><div><span>Radius</span><b id="measureRadius">—</b></div></div></div>
+          <div class="side-card note"><h2>Wissenschaftlicher Hinweis</h2><p>Setze die <strong>Mitte der gezeichneten Linie</strong> auf den sichtbaren Partikelrand. Bei überlappten Kugeln darfst du die unsichtbare Kontur gedanklich vervollständigen.</p><p>Jede Kugel wird als voller Kreis gespeichert. Die Referenzradien der Testbilder werden in der realen Studie nicht im Browser hinterlegt.</p></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="summary hidden" id="summaryPanel">
+      <span class="eyebrow">KALIBRIERUNG BEENDET</span>
+      <h1>Deine drei Testbilder sind abgeschlossen.</h1>
+      <p>Hier siehst du eine erste Auswertung. Das ist eine Demonstration der späteren Studienlogik – die Referenzwerte sind in dieser lokalen Version im Browser hinterlegt.</p>
+      <div class="summary-grid" id="scoreGrid"></div>
+      <p class="muted">Die Zuordnung erfolgt näherungsweise anhand der Kreismittelpunkte und Radien. Fehlende und zusätzliche Kreise werden getrennt gezählt. Diese Bewertung ist noch kein validierter wissenschaftlicher Score.</p>
+      <div class="summary-actions"><button class="btn ghost" id="summaryExport">Bisherige Daten exportieren ↓</button><button class="btn primary big" id="continueBtn">Weitere Bilder annotieren →</button></div>
+    </section>
+  </main>
+  <footer>SEM Circle Study · Lokaler Forschungsprototyp · Keine Datenübertragung · Koordinaten in Originalbildpixeln</footer>
+</body>
+</html>
