@@ -1,96 +1,108 @@
-# SEM Circle Study · v0.1 (lokaler Prototyp)
+# SEM Circle Study – v0.2 (zentrale Datenspeicherung)
 
-**Zweck:** Eine einfache Website zum Testen des manuellen Einzeichnens von Kugeln in synthetischen SEM-ähnlichen Bildern. Noch **keine Online-Studie**: Annotationen werden ausschließlich im Browser gespeichert und lassen sich als JSON exportieren.
+Website für die Kreisannotation von synthetischen und später echten SEM-Bildern. Hosting über **GitHub Pages**, Speicherung über **Supabase**. Die Annotation bleibt lokal nutzbar, bis die zentrale Speicherung eingerichtet wurde.
 
-## 1. Sofort ausprobieren
+**Vorbereitete Funktionen:** Drei Kalibrierungsbilder, Maus-/Tastatursteuerung, anschließend beliebig viele weitere Bilder; Speichern der fertigen Annotationen als JSON im Browser, optionaler Upload nach Einwilligung, Warteschlange bei Netzwerkfehlern, JSON-Gesamtexport als Backup. Die bereits gesammelten Daten aus v0.1 bleiben im selben Browser erhalten (`sem-circle-study-v01-data`). Bei einer Einwilligung werden sie ebenfalls übertragen, einschließlich früherer Testdaten.
 
-1. ZIP-Datei entpacken.
-2. `index.html` in Firefox, Chrome oder Edge öffnen (Doppelklick). Falls lokale Dateien eingeschränkt sind, die folgende Alternative benutzen.
-3. Auf **Drei Testbilder beginnen** klicken.
-4. Kreise mit gedrückter linker Maustaste zeichnen und bei Bedarf nachjustieren.
-5. Die drei Kalibrierungsbilder abschließen. Anschließend weitere Demo-Bildausschnitte ohne festes Ende annotieren.
-6. **Alle Daten exportieren** drücken: Der Browser lädt eine JSON-Datei herunter.
+## 1. Supabase-Projekt erstellen
 
-**Stabilere Alternative** (wenn Bilder im Browser nicht laden): Terminal im entpackten Ordner öffnen, `python -m http.server 8000` ausführen und `http://localhost:8000/` aufrufen. Terminal offen lassen, solange die Seite läuft.
+1. Öffne <https://supabase.com/dashboard> und melde dich an.
+2. **New project** erstellen, Namen zum Beispiel `sem-circle-study`. Sichere das erzeugte Datenbankpasswort, es gehört nicht auf GitHub.
+3. Wähle eine geeignete Region (für Forschung und Datenschutz den Standort mit deiner Institution abstimmen).
+4. Warte, bis dein Projekt bereitsteht.
 
-## 2. Steuerung
+## 2. Datenbanktabelle und Schutzregeln anlegen
 
-| Aktion | Eingabe |
-|---|---|
-| Neuen Kreis zeichnen | Linke Maustaste drücken und nach außen ziehen |
-| Kreis verschieben | Mittelpunkt anklicken und ziehen |
-| Radius korrigieren | Kreisrand ziehen oder Mausrad über dem Bild bei ausgewähltem Kreis |
-| Mittelpunkt 1 px | Pfeiltasten |
-| Mittelpunkt 0,1 px | Shift + Pfeiltasten |
-| Radius 1 px | Mausrad |
-| Radius 0,1 px | Shift + Mausrad |
-| Zoom | `+`, `-` oder Buttons |
-| Bildausschnitt verschieben | Alt + ziehen oder rechte Maustaste ziehen |
-| Auswahl löschen | Entf |
-| Rückgängig | Strg + Z |
+1. Im Supabase-Dashboard links **SQL Editor** öffnen.
+2. Den **gesamten Inhalt** von [`supabase_setup.sql`](supabase_setup.sql) einfügen.
+3. Auf **Run** klicken.
+4. Unter **Table Editor** sollte `sem_annotations` sichtbar sein.
 
-Die Kreislinie ist um den mathematischen Radius zentriert. Alle exportierten Koordinaten beziehen sich auf **Originalbildpixel** (unabhängig von Zoom oder Fenstergröße).
+Das SQL-Skript aktiviert **Row Level Security** (RLS). Teilnehmende dürfen nach anonymer Anmeldung **nur neue Zeilen schreiben**, sie dürfen über die Website **keine Daten anderer Personen lesen, ändern oder löschen**. Projektadministratoren können die Daten über ihr Supabase-Dashboard lesen und exportieren. RLS niemals für diese Tabelle deaktivieren.
 
-## 3. JSON in Cellpose-kompatible Instanzmatrix umwandeln
+## 3. Anonyme Anmeldung aktivieren
 
-Python-Script ist im Ordner `tools` enthalten. Voraussetzung: NumPy.
+Im Supabase-Dashboard zu **Authentication → Sign In / Providers** bzw. in den Einstellungen zu **Allow anonymous sign-ins** navigieren und die anonymen Logins aktivieren. Diese Anmeldung verlangt weder Name noch E-Mail. Sie dient der getrennten Zuordnung von Browser-Sitzungen und der sicheren RLS-Prüfung.
 
-```bash
-python -m pip install numpy
-python tools/export_to_numpy.py "sem_circle_annotations_XXXXXXXX.json"
+Bei öffentlicher Nutzung sollten außerdem CAPTCHA/Turnstile, Rate Limits und die Supabase-Quoten geprüft werden, um automatisierte Spam-Einträge zu begrenzen.
+
+## 4. URL und öffentlichen Schlüssel eintragen
+
+1. Im Supabase-Projekt **Connect** oder **Settings → API Keys** öffnen.
+2. **Project URL** und den **publishable key** kopieren (`sb_publishable_...`).
+3. Die Datei `supabase-config.js` öffnen und eintragen:
+
+```javascript
+window.SUPABASE_CONFIG = {
+  url: 'https://DEINE-PROJEKT-ID.supabase.co',
+  publishableKey: 'sb_publishable_DEIN_OEFFENTLICHER_KEY'
+};
 ```
 
-Ausgabe pro Bild im Ordner `exported_annotations/`:
+**Wichtig:** Nur der *publishable* Key darf in GitHub Pages stehen. **Niemals** einen `service_role`-Key oder `sb_secret_...` in Website-Dateien, GitHub, Screenshots oder Chat-Nachrichten veröffentlichen! Die Sicherheit kommt von der Kombination aus anonymem Login und RLS.
 
-- `instance_masks.npy`: `(height,width)` Integer-Array, 0 Hintergrund, positive Werte Kreis-IDs
-- `circles.csv`: Mittelpunkt, Radius, Durchmesser, Zeichenreihenfolge
-- `metadata.json`: Provenienz und Konventionen
+## 5. GitHub Pages aktualisieren
 
-**Wichtig:** Dies sind Masken von *ganzen Kreismodellen*, keine pixelgenau handsegmentierten SEM-Konturen. Bei Überlappung gewinnt der zuletzt eingezeichnete Kreis. Die CSV erhält alle ursprünglichen Kreisparameter.
+Repository: <https://github.com/CalvinKnoop/SEM-evaluation>.
 
-## 4. Dateien
+Auf **Add file → Upload files** die neuen und geänderten Dateien aus diesem ZIP hochladen. Achte darauf, dass sich `index.html`, `app.js`, `cloud.js`, `supabase-config.js` usw. **direkt im Hauptverzeichnis** befinden. Vorhandene Dateien mit gleichem Namen müssen ersetzt werden. Anschließend **Commit changes** klicken.
 
-```text
-sem-circle-study-v01/
-├── index.html                Startseite + Annotationstool
-├── styles.css                Design
-├── app.js                    Maussteuerung, Auswertung, JSON-Export
-├── calibration_truth.js      Referenzkreise NUR für lokalen Demo-Score
-├── calibration_truth.json    Referenzdaten für reproduzierbare Demo
-├── images/                   3 Kalibrierungs- + 3 weitere Demo-Bilder
-└── tools/
-    ├── make_demo_images.py   Generiert die sechs Demo-Bilder deterministisch neu
-    └── export_to_numpy.py    JSON -> CSV und `.npy` Instanzmasken
+GitHub Pages bleibt bei **Settings → Pages** auf `Deploy from a branch`, `main` und `/ (root)`.
+
+Website: <https://calvinknoop.github.io/SEM-evaluation/>.
+
+**Alternative zum Upload vieler Dateien:** In deinem lokalen Repository die Dateien ersetzen, dann mit Git commit und push hochladen. Lade nicht das ZIP selbst als Website hoch.
+
+## 6. Testen – bevor du weitere Freunde einlädst
+
+1. Öffne die Website und aktualisiere mit `Strg + F5`, damit die neuen Skripte geladen werden.
+2. Auf der Startseite die Einwilligung zur **zentralen Übertragung** aktivieren.
+3. Einen Kreis im ersten Testbild zeichnen und auf **Test abschließen** klicken.
+4. Der obere Status sollte zunächst den Upload anzeigen und anschließend **Alle Annotationen zentral gespeichert** melden.
+5. Im Supabase-Dashboard **Table Editor → sem_annotations** öffnen und prüfen, dass eine neue Zeile eingetroffen ist.
+6. Prüfe `image_id = calibration_01`, `mode = calibration`, `circles` mit den Kreisparametern.
+7. Für die Fehlerprobe die Internetverbindung kurz unterbrechen oder den Browser in den DevTools auf Offline schalten, ein weiteres Bild abschließen und später **Jetzt synchronisieren** klicken. Bis dahin bleibt die Annotation lokal vorhanden.
+8. Weiterhin regelmäßig **Alle Daten exportieren** für ein unabhängiges JSON-Backup nutzen.
+
+**Statusmeldungen:**
+- `Nur lokal · Supabase nicht konfiguriert`: URL/Key fehlt, ungültig oder Supabase-JavaScript konnte nicht laden.
+- `Nur lokal · keine Einwilligung`: keine Übertragung; lokale Annotation ist weiter möglich.
+- `X lokal gesichert · Upload fehlgeschlagen`: Daten bleiben im Browser; **Jetzt synchronisieren** und die Browser-Konsole (F12) auf Fehlermeldungen prüfen.
+- `Alle Annotationen zentral gespeichert`: Alle lokalen fertigen Einträge wurden erfolgreich übertragen oder bereits in der Datenbank erkannt.
+
+Wenn der Upload fehlschlägt, kontrolliere zuerst: anonyme Anmeldung aktiviert, SQL-Skript ausgeführt, `supabase-config.js` wirklich hochgeladen, kein Secret-Key versehentlich eingetragen.
+
+## 7. Daten in Supabase prüfen und exportieren
+
+Im Dashboard als Projektadministrator: **Table Editor → sem_annotations**. Zur Übersicht kann auch im SQL Editor dieser Befehl laufen:
+
+```sql
+select mode, image_id, count(*) as annotations,
+       sum(jsonb_array_length(circles)) as circles
+from public.sem_annotations
+ group by mode, image_id
+ order by mode, image_id;
 ```
 
-## 5. Bilder durch eigene Aufnahmen ersetzen
+Der CSV-Export der Tabelle enthält das Feld `circles` als JSON-Text. Du kannst es später mit Python (`json.loads`) verarbeiten. `annotation_id` ist eindeutig pro angemeldetem Nutzer; doppelte Uploads desselben Datensatzes werden abgewiesen und vom Browser als bereits gespeichert erkannt.
 
-Für die lokale Erprobung kann man `images/demo_sem_01.png`, `demo_sem_02.png` und `demo_sem_03.png` durch PNG-Dateien mit gleichem Dateinamen ersetzen. Die Datenbank für die spätere Studie wird eine explizite Bild-ID und Bildversion speichern, damit Annotationen immer der exakt verwendeten Aufnahme zugeordnet werden können. Achte auf Nutzungsrechte und ob SEM-Aufnahmen öffentlich gezeigt werden dürfen.
+## 8. Was vor öffentlicher Rekrutierung noch nötig ist
 
-## 6. GitHub Pages: Schritt für Schritt (erst für Testversion)
+- **`datenschutz.html` ergänzen:** Verantwortliche Forschungseinrichtung, Ansprechpartner, Rechtsgrundlage, Hosting/Datenbankregion, Fristen, Lösch-/Widerrufsverfahren und erforderliche weitere Datenschutzinformationen.
+- **Institutionellen Datenschutz / Forschungsethik klären**, besonders wenn weitere Teilnehmende außerhalb des Freundeskreises rekrutiert werden.
+- Die aktuell öffentlich verfügbaren `calibration_truth.js` und `calibration_truth.json` enthalten die Referenzradien. Für wissenschaftlich blinde Kalibrierung muss die Auswertung später serverseitig erfolgen; das derzeitige Ergebnis ist **nicht gegen Einsicht in die Ground Truth geschützt**.
+- Bilder sind weiterhin synthetisch. **Echte SEM-Bilder** und ein balancierter Vergabemechanismus folgen in der nächsten Projektphase.
+- Supabase schützt nicht automatisch gegen Massen-Spam von neu registrierten anonymen Nutzern; CAPTCHA, Limits und Monitoring sind sinnvoll, bevor der Link breit verteilt wird.
 
-1. GitHub-Konto erstellen oder anmelden unter https://github.com .
-2. **New repository** anlegen, zum Beispiel `sem-circle-study`. Für GitHub Pages im kostenlosen Standardworkflow empfiehlt sich ein öffentliches Repository (geprüfte aktuelle Planregeln beachten).
-3. **Add file -> Upload files** und alle Dateien und den Ordner `images` hochladen (nicht nur das ZIP, sondern dessen entpackten Inhalt). `index.html` muss im Repository-Hauptverzeichnis liegen.
-4. **Settings -> Pages -> Build and deployment -> Deploy from a branch** auswählen, Branch `main`, Ordner `/ (root)`, **Save**.
-5. Nach erfolgreichem Deployment auf `https://DEIN-NAME.github.io/sem-circle-study/` öffnen.
+## Dateiliste
 
-Offizielle Anleitung: https://docs.github.com/en/pages/quickstart .
+- `index.html`, `styles.css`: Oberfläche
+- `app.js`: Kreisannotation, bestehender Datenexport und neue Synchronisationswarteschlange
+- `cloud.js`: Supabase-Anmeldung und Upload
+- `supabase-config.js`: Projekt-URL und öffentlicher API-Key
+- `supabase_setup.sql`: Datenbanktabelle und RLS
+- `datenschutz.html`: noch zu vervollständigende Informationsvorlage
+- `images/`: synthetische Test- und Demobilder
+- `calibration_truth.js`, `.json`: **nur Demo, öffentlich einsehbar**
+- `tools/export_to_numpy.py`: bestehendes Offline-Exportwerkzeug
 
-GitHub Pages stellt nur die Website bereit. **Es speichert keine Annotationen auf dem Server.** Die erste öffentliche Testversion würde ausschließlich JSON-Downloads erzeugen. Andere Teilnehmende müssten dir diese Dateien selbst zusenden.
-
-## 7. Vor einer echten öffentlichen Datenerhebung
-
-- **Keine** `calibration_truth.js` oder Referenzradien an den öffentlichen Browser ausliefern, wenn eine nicht manipulierbare Qualitätsprüfung erforderlich ist. Für produktive Kalibrierung Referenzwerte serverseitig halten und nach Einreichung dort auswerten.
-- Datenbank / API: z. B. Supabase. Niemals geheime `service_role`-Schlüssel im Browser ablegen. Row Level Security (RLS) mit minimalen Schreibrechten einsetzen; anonyme Authentisierung, Rate-Limits und Missbrauchsschutz testen. Unbegrenzt Bilder annotieren heißt **nicht** unbegrenzt ungeprüfte Schreibanfragen zulassen.
-- Einwilligung, Datenschutzinformation, wissenschaftliche Dokumentation, Versions- und Bildprotokollierung vorbereiten. Auch pseudonyme IDs und Nutzungsmetadaten können datenschutzrelevant sein.
-- Für echte Aufnahmen keine automatische Ground-Truth-Behauptung: menschliche Annotationen liefern Wiederholbarkeits- und Konsensinformationen, nicht zwingend den echten 3D-Kugelradius.
-- Browser-Zwischenspeicher (`localStorage`) ist **kein Backup**. Regelmäßig JSON exportieren; Browserdaten können gelöscht werden.
-
-## 8. Technische Grenzen von v0.1
-
-Die Testbilder sind synthetisch und illustrieren die Bedienung. Das Zuordnungsverfahren für die Kalibrierung ist eine vereinfachte heuristische Paarung und noch kein validierter Score. Der Browser speichert lokal, nicht online. Die drei Bilder nach der Kalibrierung sind vorläufig ebenfalls synthetische Demos, keine echten SEM-Bilder.
-
----
-
-Projektname **SEM Circle Study** ist ein vorläufiger Arbeitstitel, keine markenrechtlich geprüfte Produktbezeichnung.

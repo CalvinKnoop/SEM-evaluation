@@ -1,6 +1,6 @@
 'use strict';
-// SEM Circle Study v0.1 - no dependencies, no network transmission.
-const APP_VERSION = '0.1.0';
+// SEM Circle Study v0.2 - offline-first, optional Supabase synchronisation.
+const APP_VERSION = '0.2.0';
 const STORAGE_KEY = 'sem-circle-study-v01-data';
 const TASKS = [
   { id:'calibration_01', src:'images/calibration_01.png', title:'Testbild 1 · Einfach', desc:'Isolierte Kugeln. Passe für jede erkennbare Kugel einen Kreis an.', difficulty:'einfach' },
@@ -17,10 +17,17 @@ const $ = (id) => document.getElementById(id);
 const canvas = $('annotator');
 const ctx = canvas.getContext('2d');
 function newId() { return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); }
-function emptyStore(){ return {participantId: newId(), sessionId:newId(), records:[], draft:null}; }
+function emptyStore(){ return {participantId: newId(), sessionId:newId(), records:[], draft:null, syncedIds:[], remoteConsent:false}; }
 let saved;
 try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (_) { saved = null; }
 const store = saved && Array.isArray(saved.records) && saved.participantId ? saved : emptyStore();
+// Keep the v0.1 browser key so completed work remains available after the update.
+if (!Array.isArray(store.syncedIds)) store.syncedIds = [];
+store.remoteConsent = store.remoteConsent === true;
+let cloudBusy = false;
+let cloudReady = false;
+let cloudLastError = '';
+
 const st = {
   mode:'intro', index:0, task:null, image:null, circles:[], selected:null,
   drag:null, history:[], zoom:1, panX:0, panY:0, startedAt:Date.now(), nextId:1,
@@ -33,6 +40,44 @@ function persist(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
   } catch(e){$('storageState').textContent='Speicher nicht verfügbar – bitte exportieren'; console.warn('localStorage:',e);}
 }
+function updateCloudStatus(){
+  const tag = $('storageState');
+  const button = $('syncNowBtn');
+  const configured = !!window.SEMCloud?.isConfigured;
+  const pending = store.records.filter(r => !store.syncedIds.includes(r.annotation_id)).length;
+  button.disabled = !configured || !store.remoteConsent || cloudBusy;
+  if (!configured) tag.textContent = 'Nur lokal · Supabase nicht konfiguriert';
+  else if (!store.remoteConsent) tag.textContent = 'Nur lokal · keine Einwilligung zur Übertragung';
+  else if (cloudBusy) tag.textContent = `Übertrage Daten … ${pending} offen`;
+  else if (pending && cloudLastError) tag.textContent = `${pending} lokal gesichert · Upload fehlgeschlagen`;
+  else if (pending) tag.textContent = `${pending} lokal gesichert · Upload ausstehend`;
+  else tag.textContent = cloudReady ? 'Alle Annotationen zentral gespeichert' : 'Cloud-Verbindung wird geprüft';
+}
+
+async function syncPending(){
+  if(cloudBusy || !store.remoteConsent || !window.SEMCloud?.isConfigured) { updateCloudStatus(); return; }
+  cloudBusy = true; cloudLastError = ''; updateCloudStatus();
+  try {
+    await window.SEMCloud.ensureSession();
+    cloudReady = true;
+    for(const record of store.records){
+      if(!store.remoteConsent) break;
+      if(store.syncedIds.includes(record.annotation_id)) continue;
+      try { await window.SEMCloud.upload(record); }
+      catch(err){
+        // A previous POST may have succeeded even if its response was lost.
+        if(err?.code !== '23505') throw err;
+      }
+      store.syncedIds.push(record.annotation_id);
+      persist();
+      updateCloudStatus();
+    }
+  } catch(err) {
+    cloudLastError = err?.message || String(err);
+    console.warn('Supabase synchronisation failed:',err);
+  } finally {cloudBusy = false;updateCloudStatus();}
+}
+
 function setVisible(which){
   $('introPanel').classList.toggle('hidden', which!=='intro');
   $('workPanel').classList.toggle('hidden', which!=='work');
@@ -168,13 +213,15 @@ document.addEventListener('keydown',e=>{
 function saveCurrent(){
   const rec={
     schema_version:1,app_version:APP_VERSION,participant_id:store.participantId,session_id:store.sessionId,
-    annotation_id:newId(),mode:st.mode,image_id:st.task.id,image_file:st.task.src,
+    annotation_id:newId(),mode:st.mode,image_id:st.task.id,image_file:st.task.src,image_version:st.task.version || 'demo-v01',
     width:canvas.width,height:canvas.height,started_at:new Date(st.startedAt).toISOString(),
     submitted_at:new Date().toISOString(),duration_seconds:Math.round((Date.now()-st.startedAt)/1000),
     overlap_rule:'last_circle_wins',coordinate_system:'pixel center at integer x,y, origin top left',
     circles:st.circles.map((c,i)=>({particle_id:c.id,center_x_px:Number(c.x.toFixed(3)),center_y_px:Number(c.y.toFixed(3)),radius_px:Number(c.r.toFixed(3)),draw_order:i}))
   };
-  store.records.push(rec);store.draft=null;persist();return rec;
+  store.records.push(rec);store.draft=null;persist();updateCloudStatus();
+  if(store.remoteConsent) void syncPending();
+  return rec;
 }
 function scoreRecord(rec){
   const truths=window.CALIBRATION_TRUTH?.[rec.image_id]||[];
@@ -225,6 +272,13 @@ function exportJSON(){
   a.download=`sem_circle_annotations_${store.participantId.slice(0,8)}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 $('exportAll').onclick=exportJSON;$('summaryExport').onclick=exportJSON;
+$('syncNowBtn').onclick=()=>{if(!store.remoteConsent){alert('Bitte bestätige zuerst die freiwillige Übertragung auf der Startseite.');return;}void syncPending();};
+$('uploadConsent').checked=store.remoteConsent;
+$('uploadConsent').addEventListener('change',e=>{
+  store.remoteConsent = e.target.checked;
+  persist(); updateCloudStatus();
+  if(store.remoteConsent) void syncPending();
+});
 $('startBtn').onclick=()=>{
   const d=store.draft;
   if(d && d.mode==='calibration' && TASKS[d.index]?.id===d.taskId) begin('calibration',d.index,true);
@@ -240,3 +294,6 @@ else if(store.records.some(r=>r.mode==='calibration'&&r.image_id==='calibration_
   $('startBtn').onclick=()=>{store.sessionId=newId();store.draft=null;start();};
 }
 window.addEventListener('beforeunload',persist);
+window.addEventListener('online',()=>{if(store.remoteConsent)void syncPending();});
+updateCloudStatus();
+if(store.remoteConsent) void syncPending();

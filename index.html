@@ -4,15 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="description" content="Prototyp einer webbasierten SEM-Kreisannotation für ein wissenschaftliches Forschungsprojekt." />
-  <title>SEM Circle Study · Annotationsprototyp</title>
+  <title>SEM Circle Study · Annotationen</title>
   <link rel="stylesheet" href="styles.css" />
   <script defer src="calibration_truth.js"></script>
+  <script defer src="supabase-config.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="cloud.js"></script>
   <script defer src="app.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark" aria-hidden="true">◉</span><div><strong>SEM Circle Study</strong><small>Forschungsprototyp · v0.1</small></div></div>
-    <div class="top-actions"><span class="tag" id="storageState">Nur lokal gespeichert</span><button class="btn ghost" id="exportAll" title="Alle bisherigen Annotationen herunterladen">Alle Daten exportieren ↓</button></div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true">◉</span><div><strong>SEM Circle Study</strong><small>Forschungsprototyp · v0.2</small></div></div>
+    <div class="top-actions"><span class="tag" id="storageState" aria-live="polite">Speicherstatus wird geladen</span><button class="btn ghost" id="syncNowBtn" title="Noch nicht übertragene Annotationen senden">Jetzt synchronisieren</button><button class="btn ghost" id="exportAll" title="Alle bisherigen Annotationen herunterladen">Alle Daten exportieren ↓</button></div>
   </header>
   <main class="layout">
     <section class="intro" id="introPanel">
@@ -24,7 +27,8 @@
         <article><span class="step-num">02</span><h3>Mittel</h3><p>Mehr Partikel und erste Überlappungen.</p></article>
         <article><span class="step-num">03</span><h3>Schwer</h3><p>Stärkere Überlappungen und Bildrauschen.</p></article>
       </div>
-      <div class="notice"><strong>Hinweis:</strong> Dies ist ein lokaler Demonstrator. Es werden <strong>keine Daten an einen Server übertragen</strong>. Deine Arbeit wird nur in diesem Browser zwischengespeichert und kann als JSON exportiert werden. Die gezeigten Bilder sind synthetisch.</div>
+      <div class="notice"><strong>Datenspeicherung:</strong> Fertige Annotationen werden zuerst auf deinem Gerät gespeichert. Nach deiner freiwilligen Zustimmung werden sie zusätzlich an die Forschungsdatenbank übermittelt. Bei Verbindungsproblemen bleiben noch nicht übertragene Datensätze lokal erhalten. Du kannst jederzeit zusätzlich eine JSON-Sicherung herunterladen. Die Bilder in dieser Version sind synthetische Test- und Demobilder.</div>
+      <div class="consent-panel"><label><input type="checkbox" id="uploadConsent" /> <span>Ich stimme der Übertragung meiner Annotationen – einschließlich eventuell bereits in diesem Browser gespeicherter Testdaten – in die Forschungsdatenbank zu. Übertragen werden eine pseudonyme Teilnehmer- und Sitzungs-ID, Bildkennungen, eingezeichnete Kreise, Bearbeitungsdauer und Zeitstempel. Meine Teilnahme ist freiwillig.</span></label><p class="muted">Vor einer öffentlichen wissenschaftlichen Datensammlung müssen die <a href="datenschutz.html" target="_blank" rel="noopener noreferrer">Datenschutzhinweise</a> und Kontaktdaten durch die Projektleitung vervollständigt werden. Ohne Häkchen kannst du weiterhin lokal annotieren und JSON-Dateien exportieren; die Ergebnisse erreichen uns dann nicht automatisch.</p></div>
       <div class="intro-footer"><button class="btn primary big" id="startBtn">Drei Testbilder beginnen →</button><span class="muted" id="participantLabel"></span></div>
     </section>
 
@@ -60,6 +64,6 @@
       <div class="summary-actions"><button class="btn ghost" id="summaryExport">Bisherige Daten exportieren ↓</button><button class="btn primary big" id="continueBtn">Weitere Bilder annotieren →</button></div>
     </section>
   </main>
-  <footer>SEM Circle Study · Lokaler Forschungsprototyp · Keine Datenübertragung · Koordinaten in Originalbildpixeln</footer>
+  <footer>SEM Circle Study · v0.2 · Lokal + optionale Cloud-Sicherung · Koordinaten in Originalbildpixeln</footer>
 </body>
 </html>
